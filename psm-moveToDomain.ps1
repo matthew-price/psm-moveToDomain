@@ -90,13 +90,13 @@ function Invoke-PSMConfigureAppLocker{
 function New-VaultAdminObjects{
 
     $body  = @{
-    name ="PSMConnectMPTest3"
+    name ="PSMObjectName"
     address ="DOMAIN"
-    userName ="PSMConnect2"
-    safeName ="MP-LAB-Test"
+    userName ="UserName"
+    safeName ="SafeName"
     secretType ="password"
-    secret ="Cyberark1"
-    platformID ="MPLab-WIN-DOM"
+    secret ="PasswordHere"
+    platformID ="PlatformID"
     logonDomain = "DOMAIN"
     }
     $url = $global:pvwaAddress + "PasswordVault/api/Accounts"
