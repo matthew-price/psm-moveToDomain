@@ -22,6 +22,7 @@ function Get-Variables{
 
     $global:pvwaAddress = Read-Host "Please enter the Privilege Cloud Portal web address, e.g. https://subdomain.privilegecloud.cyberark.com/"
 }
+
 $global:pvwaToken = function New-ConnectionToRestAPI{
     # Get PVWA and login informatioN
     $tinaCreds = Get-Credential -Message "Please enter your Privilege Cloud admin credentials"
@@ -37,6 +38,8 @@ $global:pvwaToken = function New-ConnectionToRestAPI{
     $global:pvwaToken = Invoke-RestMethod -Method 'Post' -Uri $url -Body $json -ContentType 'application/json'
     #Write-Host $result
     #return $result
+}
+
 function Restart-PSM{
     Restart-Service "Cyber-Ark Privileged Session Manager"
 }
@@ -104,8 +107,6 @@ function New-VaultAdminObjects{
 
 }
 
-
-}
 
 function Update-RDS{
     wmic.exe /namespace:\\root\CIMV2\TerminalServices PATH Win32_TSPermissionsSetting WHERE (TerminalName="RDP-Tcp") CALL AddAccount "DOMAINNAME\PSMAdminConnect",0
