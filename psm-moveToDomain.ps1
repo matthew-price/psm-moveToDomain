@@ -14,7 +14,7 @@ function Get-Variables{
 
     $psmConnectCredentials = Get-Credential -Message "Please enter the domain PSMConnect credentials"
     $global:psmConnectUsername = $psmConnectCredentials.UserName
-    $BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($tinaCreds.Password)
+    $BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($psmConnectCredentials.Password)
     $global:psmConnectPassword = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR) #Need to check if this is the most secure way to do this
 
     ##Replaced by Get-Crential above
