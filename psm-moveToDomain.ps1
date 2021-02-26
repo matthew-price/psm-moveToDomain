@@ -5,13 +5,21 @@ $global:pvwaAddress = ""
 $global:psmConnectUsername = ""
 $global:result = ""
 $global:psmRootInstallLocation = "C:\Program Files (x86)\CyberArk\PSM"
+$global:psmConnectPassword = ""
 
 function Get-Variables{
     $global:domain = Read-Host "Please enter the pre-2000 domain name (e.g. DOMAIN): "
     $defaultPSMConnectUsername = $domain + "\PSMConnect"
     $defaultPSMAdminConnectUsername = $domain + "\PSMAdminConnect"
-    $global:psmConnectUsername = Read-Host "Please enter the PSMConnect username [$defaultPSMConnectUsername]:"
-    if([string]::IsNullOrWhiteSpace($psmConnectUsername)){$psmConnectUsername = $defaultPSMConnectUsername}
+
+    $psmConnectCredentials = Get-Credential -Message "Please enter the domain PSMConnect credentials"
+    $global:psmConnectUsername = $psmConnectCredentials.UserName
+    $BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($tinaCreds.Password)
+    $global:psmConnectPassword = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR) #Need to check if this is the most secure way to do this
+
+    ##Replaced by Get-Crential above
+    #$global:psmConnectUsername = Read-Host "Please enter the PSMConnect username [$defaultPSMConnectUsername]:"
+    #if([string]::IsNullOrWhiteSpace($psmConnectUsername)){$psmConnectUsername = $defaultPSMConnectUsername}
 
     $global:psmAdminConnectUsername = Read-Host "Please enter the PSMAdminConnect username [$defaultPSMAdminConnectUsername]:"
     if([string]::IsNullOrWhiteSpace($psmAdminConnectUsername)){$psmAdminConnectUsername = $defaultPSMAdminConnectUsername}
@@ -91,10 +99,10 @@ function New-VaultAdminObjects{
 
     $body  = @{
     name ="PSMObjectName"
-    address ="DOMAIN"
-    userName ="UserName"
-    safeName ="SafeName"
-    secretType ="password"
+    address ="$global:domain"
+    userName ="$global:psmConnectUsername"
+    safeName ="PSM"
+    secretType ="$global:psmConnectPassword"
     secret ="PasswordHere"
     platformID ="PlatformID"
     logonDomain = "DOMAIN"
@@ -109,8 +117,8 @@ function New-VaultAdminObjects{
 
 
 function Update-RDS{
-    wmic.exe /namespace:\\root\CIMV2\TerminalServices PATH Win32_TSPermissionsSetting WHERE (TerminalName="RDP-Tcp") CALL AddAccount "DOMAINNAME\PSMAdminConnect",0
-    wmic.exe /namespace:\\root\cimv2\TerminalServices PATH Win32_TSAccount WHERE "TerminalName='RDP-Tcp' AND AccountName='DOMAINNAME\\PSMAdminConnect'" CALL ModifyPermissions TRUE,4
+    wmic.exe /namespace:\\root\CIMV2\TerminalServices PATH Win32_TSPermissionsSetting WHERE (TerminalName="RDP-Tcp") CALL AddAccount "$global:domain\\PSMAdminConnect",0
+    wmic.exe /namespace:\\root\cimv2\TerminalServices PATH Win32_TSAccount WHERE "TerminalName='RDP-Tcp' AND AccountName='$global:domain\\PSMAdminConnect'" CALL ModifyPermissions TRUE,4
     Net stop termservice
     Net start termservice
     
@@ -125,6 +133,7 @@ New-VaultAdminObjects
 Stop-PSM
 Backup-PSMConfig
 Update-PSMConfig
+Update-RDS
 Invoke-PSMHardening
 Invoke-PSMConfigureAppLocker
 Restart-PSM
