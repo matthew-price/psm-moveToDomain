@@ -6,6 +6,9 @@ $global:psmConnectUsername = ""
 $global:result = ""
 $global:psmRootInstallLocation = "C:\Program Files (x86)\CyberArk\PSM"
 $global:psmConnectPassword = ""
+$global:psmAdminUsername = ""
+$global:psmAdminPassword = ""
+$global:domain = ""
 
 function Get-Variables{
     $global:domain = Read-Host "Please enter the pre-2000 domain name (e.g. DOMAIN): "
@@ -17,15 +20,20 @@ function Get-Variables{
     $BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($psmConnectCredentials.Password)
     $global:psmConnectPassword = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR) #Need to check if this is the most secure way to do this
 
+    $psmAdminCredentials = Get-Credential -Message "Please enter the domain PSMAdminConnect credentials"
+    $global:psmAdminUsername = $psmAdminCredentials.UserName
+    $BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($psmAdminCredentials.Password)
+    $global:psmAdminPassword = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR) #Need to check if this is the most secure way to do this
+
     ##Replaced by Get-Crential above
     #$global:psmConnectUsername = Read-Host "Please enter the PSMConnect username [$defaultPSMConnectUsername]:"
     #if([string]::IsNullOrWhiteSpace($psmConnectUsername)){$psmConnectUsername = $defaultPSMConnectUsername}
 
-    $global:psmAdminConnectUsername = Read-Host "Please enter the PSMAdminConnect username [$defaultPSMAdminConnectUsername]:"
-    if([string]::IsNullOrWhiteSpace($psmAdminConnectUsername)){$psmAdminConnectUsername = $defaultPSMAdminConnectUsername}
+    #$global:psmAdminConnectUsername = Read-Host "Please enter the PSMAdminConnect username [$defaultPSMAdminConnectUsername]:"
+    #if([string]::IsNullOrWhiteSpace($psmAdminConnectUsername)){$psmAdminConnectUsername = $defaultPSMAdminConnectUsername}
 
     $defaultPSMRootInstallLocation = "C:\Program Files (x86)\CyberArk\PSM"
-    $global:psmRootInstallLocation = Read-Host "Please enter the root PSM install location [$global:defaultPSMRootInstallLocation]:"
+    $global:psmRootInstallLocation = Read-Host "Please enter the root PSM install location [$defaultPSMRootInstallLocation]:"
     if([string]::IsNullOrWhiteSpace($global:psmRootInstallLocation)){$global:psmRootInstallLocation = $defaultPSMRootInstallLocation}
 
     $global:pvwaAddress = Read-Host "Please enter the Privilege Cloud Portal web address, e.g. https://subdomain.privilegecloud.cyberark.com/"
@@ -65,8 +73,8 @@ function Update-PSMConfig{
     $psmHardeningContent = Get-Content -Path $global:psmRootInstallLocation\Hardening\PSMHardening.ps1
     $psmApplockerContent = Get-Content -Path $global:psmRootInstallLocation\Hardening\PSMConfigureApplocker.ps1
 
-    $newPsmHardeningContent = $psmHardeningContent -replace "COMPUTER\\PSMConnect","$global:domain\PSMConnect"
-    $newPsmHardeningContent = $newPsmHardeningContent -replace "COMPUTER\\PSMAdminConnect","$global:domain\PSMAdminConnect"
+    $newPsmHardeningContent = $psmHardeningContent -replace "COMPUTER\\PSMConnect","$global:domain\$global:PsmConnectUsername"
+    $newPsmHardeningContent = $newPsmHardeningContent -replace "COMPUTER\\PSMAdminConnect","$global:domain\$global:PsmAdminUsername"
 
     $newPsmHardeningContent | Set-Content -Path 'C:\test-psmhardening.ps1' #Commit changes
 
@@ -102,9 +110,32 @@ function New-VaultAdminObjects{
     address ="$global:domain"
     userName ="$global:psmConnectUsername"
     safeName ="PSM"
+    secretType ="password"
+    secret ="$global:psmConnectPassword"
+    platformID ="WinDomain"
+    platformAccountProperties = @{"LogonDomain"=$global:domain}
+    }
+    $url = $global:pvwaAddress + "PasswordVault/api/Accounts"
+    $json= $body | ConvertTo-Json
+    Write-Host $json
+    Write-Host "Auth: $global:pvwaToken"
+    $Postresult = Invoke-RestMethod -Method 'Post' -Uri $url -Body $json -Headers @{ 'Authorization' = $global:pvwaToken } -ContentType 'application/json'
+
+}
+
+function New-VaultAdminObjects2{
+
+    $body  = @{
+    name ="PSMObjectName"
+    address ="$global:domain"
+    userName ="$global:psmConnectUsername"
+    safeName ="PSM"
     secretType ="$global:psmConnectPassword"
-    secret ="PasswordHere"
+    secret ="$global:psmConnectPassword"
     platformID ="PlatformID"
+    platformAccountProperties = {
+        "Logon"
+    }
     logonDomain = "DOMAIN"
     }
     $url = $global:pvwaAddress + "PasswordVault/api/Accounts"
@@ -117,14 +148,15 @@ function New-VaultAdminObjects{
 
 
 function Update-RDS{
-    wmic.exe /namespace:\\root\CIMV2\TerminalServices PATH Win32_TSPermissionsSetting WHERE (TerminalName="RDP-Tcp") CALL AddAccount "$global:domain\\PSMAdminConnect",0
+    wmic.exe /namespace:\\root\CIMV2\TerminalServices PATH Win32_TSPermissionsSetting WHERE `(TerminalName="RDP-Tcp"`) CALL AddAccount "$global:domain\\PSMAdminConnect",0
     wmic.exe /namespace:\\root\cimv2\TerminalServices PATH Win32_TSAccount WHERE "TerminalName='RDP-Tcp' AND AccountName='$global:domain\\PSMAdminConnect'" CALL ModifyPermissions TRUE,4
-    Net stop termservice
-    Net start termservice
+    Stop-Service -Force -Name "termservice"
+    Start-Service -Name "termservice"
     
     Restart-PSM
 }
 
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
 Get-Variables
 New-ConnectionToRestAPI
