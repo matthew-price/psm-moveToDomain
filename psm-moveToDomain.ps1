@@ -73,8 +73,8 @@ function Update-PSMConfig{
     $psmHardeningContent = Get-Content -Path $global:psmRootInstallLocation\Hardening\PSMHardening.ps1
     $psmApplockerContent = Get-Content -Path $global:psmRootInstallLocation\Hardening\PSMConfigureApplocker.ps1
 
-    $newPsmHardeningContent = $psmHardeningContent -replace "COMPUTER\\PSMConnect","$global:domain\$global:PsmConnectUsername"
-    $newPsmHardeningContent = $newPsmHardeningContent -replace "COMPUTER\\PSMAdminConnect","$global:domain\$global:PsmAdminUsername"
+    $newPsmHardeningContent = $psmHardeningContent -replace [Regex]::Escape('$COMPUTER\PSMConnect'),"$global:domain\$global:PsmConnectUsername"
+    $newPsmHardeningContent = $newPsmHardeningContent -replace [Regex]::Escape('$COMPUTER\PSMAdminConnect'),"$global:domain\$global:PsmAdminUsername"
 
     $newPsmHardeningContent | Set-Content -Path 'C:\test-psmhardening.ps1' #Commit changes
 
@@ -86,6 +86,7 @@ function Update-PSMConfig{
     $newPsmApplockerContent | Set-Content -Path 'C:\test-psm-applocker.ps1'
 
     Copy-Item -Path 'C:\test-psm-applocker.ps1' -Destination $psmRootInstallLocation\Hardening\PSMConfigureApplocker.ps1 -Force
+    Copy-Item -Path 'C:\test-psmhardening.ps1' -Destination $psmRootInstallLocation\Hardening\PSMHardening.ps1 -Force
     
 }
 
