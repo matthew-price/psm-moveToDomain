@@ -10,6 +10,26 @@ $global:psmAdminUsername = ""
 $global:psmAdminPassword = ""
 $global:domain = ""
 
+function IsUserDomainJoined{
+	Process {
+		try {
+		    Add-Type -AssemblyName System.DirectoryServices.AccountManagement
+            $UserPrincipal = [System.DirectoryServices.AccountManagement.UserPrincipal]::Current
+            if($UserPrincipal.ContextType -eq "Domain")
+            {
+                return $true
+            }
+            else
+            {
+                return $false
+            }   
+        }
+        catch {
+            return $false
+        }
+	}
+}
+
 function Get-Variables{
     $global:domain = Read-Host "Please enter the pre-2000 domain name (e.g. DOMAIN): "
     $defaultPSMConnectUsername = $domain + "\PSMConnect"
@@ -107,7 +127,7 @@ function Invoke-PSMConfigureAppLocker{
 function New-VaultAdminObjects{
 
     $body  = @{
-    name ="PSMObjectName"
+    name ="PSMConnect"
     address ="$global:domain"
     userName ="$global:psmConnectUsername"
     safeName ="PSM"
@@ -127,17 +147,14 @@ function New-VaultAdminObjects{
 function New-VaultAdminObjects2{
 
     $body  = @{
-    name ="PSMObjectName"
+    name ="PSMAdminConnect"
     address ="$global:domain"
-    userName ="$global:psmConnectUsername"
+    userName ="$global:psmAdminUsername"
     safeName ="PSM"
-    secretType ="$global:psmConnectPassword"
-    secret ="$global:psmConnectPassword"
+    secretType ="password"
+    secret ="$global:psmAdminPassword"
     platformID ="PlatformID"
-    platformAccountProperties = {
-        "Logon"
-    }
-    logonDomain = "DOMAIN"
+    platformAccountProperties = @{"LogonDomain"=$global:domain}
     }
     $url = $global:pvwaAddress + "PasswordVault/api/Accounts"
     $json= $body | ConvertTo-Json
@@ -159,14 +176,19 @@ function Update-RDS{
 
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-Get-Variables
-New-ConnectionToRestAPI
-Write-Host $result #remove before release
-New-VaultAdminObjects
-Stop-PSM
-Backup-PSMConfig
-Update-PSMConfig
-Update-RDS
-Invoke-PSMHardening
-Invoke-PSMConfigureAppLocker
-Restart-PSM
+if(IsUserDomainJoined){
+    Get-Variables
+    New-ConnectionToRestAPI
+    Write-Host $result #remove before release
+    New-VaultAdminObjects
+    New-VaultAdminObjects2
+    Stop-PSM
+    Backup-PSMConfig
+    Update-PSMConfig
+    Update-RDS
+    Invoke-PSMHardening
+    Invoke-PSMConfigureAppLocker
+    Restart-PSM
+} else{
+    Write-Host "Stopping. Please run this script as a domain user"
+}
